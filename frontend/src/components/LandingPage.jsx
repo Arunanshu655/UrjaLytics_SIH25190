@@ -27,9 +27,9 @@ const LandingPage = () => {
                 <ArrowRight className="w-5 h-5" />
               </button>
               </Link>
-              <button className="px-8 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+              {/* <button className="px-8 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
                 Watch Demo
-              </button>
+              </button> */}
             </div>
           </div>
         </div>
@@ -109,7 +109,7 @@ const LandingPage = () => {
       {/* Footer */}
       <div className="bg-gray-900 text-gray-400 py-8">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <p>&copy; 2025 Urjalytics. All rights reserved.</p>
+          <p>&copy; 2025 UrjaLytics. All rights reserved.</p>
         </div>
       </div>
     </div>

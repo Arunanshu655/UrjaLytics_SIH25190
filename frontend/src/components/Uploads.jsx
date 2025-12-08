@@ -739,7 +739,7 @@ const Uploads = (props) => {
             </div>
 
             {/* Fault cards */}
-            <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-100">
+            {/* <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-100">
               <h3 className="text-lg font-semibold mb-3">Detailed Faults</h3>
               <div className="grid md:grid-cols-2 gap-4">
                 {faultDetections.map((fault, idx) => (
@@ -763,7 +763,7 @@ const Uploads = (props) => {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
           </div>
         )}
 
