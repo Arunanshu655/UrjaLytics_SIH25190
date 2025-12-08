@@ -27,13 +27,13 @@ const Navbar = (props) => {
             </div>
             <div className="flex items-center space-x-6 text-sm">
               <div className="text-center">
-                <div className="text-2xl font-bold">247</div>
-                <div className="text-blue-200">Tests Analyzed</div>
+                {/* <div className="text-2xl font-bold">247</div>
+                <div className="text-blue-200">Tests Analyzed</div> */}
               </div>
-              <div className="text-center">
+              {/* <div className="text-center">
                 <div className="text-2xl font-bold">89%</div>
                 <div className="text-blue-200">Accuracy Rate</div>
-              </div>
+              </div> */}
 
               {account ?  <User2/> :  <Link to="login">
               <button className="px-6 py-2 bg-white text-blue-900 rounded-lg font-semibold hover:bg-blue-50 transition-colors">

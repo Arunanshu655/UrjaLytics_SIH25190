@@ -52,6 +52,7 @@ const StatCard = ({ label, value, sub }) => (
 );
 
 const Uploads = (props) => {
+  // existing states
   const [uploadedFile, setUploadedFile] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -59,6 +60,12 @@ const Uploads = (props) => {
   const [query, setQuery] = useState("");
   const chartRef = useRef(null);
   const inputRef = useRef(null);
+
+  // new form states for the upload card
+  const [transformerId, setTransformerId] = useState("");
+  const [uploadDate, setUploadDate] = useState("");
+  const [fileType, setFileType] = useState("");
+  const [confirmUpload, setConfirmUpload] = useState(false);
 
   // FRA data
   const fraData = [
@@ -147,19 +154,35 @@ const Uploads = (props) => {
     return () => clearInterval(t);
   }, [analyzing]);
 
+  // original handlers slightly adapted to work with new form fields
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (file) triggerAnalysis(file);
+    if (file) {
+      // set file immediately and prefill fileType if possible
+      setUploadedFile(file);
+      if (!fileType) {
+        const name = file.name.toLowerCase();
+        if (name.endsWith(".xml")) setFileType("xml");
+        else if (name.endsWith(".bin")) setFileType("bin");
+        else if (name.endsWith(".pdf")) setFileType("prfa");
+      }
+      // keep existing behavior of triggerAnalysis or wait for explicit submit
+      // Here we just set the uploaded file; user must click "Upload" to analyze
+    }
   };
 
   const handleTestClick = (fileName) => {
+    // when a sample is clicked, set some fields and trigger analysis directly
     const file = { name: fileName };
+    setTransformerId(fileName.split("-")[0] || "Sample");
+    setUploadDate("2025-10-10");
+    setFileType(fileName.split(".").pop());
     triggerAnalysis(file);
   };
 
   const triggerAnalysis = (file) => {
     setUploadedFile(file);
-    setIncludeBaseline(file.name === "TR-B-Phase-R.xml");
+    setIncludeBaseline(file.name && file.name.toLowerCase().includes("tr-b"));
     setAnalyzing(true);
     setTimeout(() => setProgress(100), 900);
     setTimeout(() => {
@@ -171,7 +194,16 @@ const Uploads = (props) => {
   const onDrop = (e) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file) triggerAnalysis(file);
+    if (file) {
+      setUploadedFile(file);
+      if (!fileType) {
+        const name = file.name.toLowerCase();
+        if (name.endsWith(".xml")) setFileType("xml");
+        else if (name.endsWith(".bin")) setFileType("bin");
+        else if (name.endsWith(".pdf")) setFileType("prfa");
+      }
+      // keep waiting for Upload button click to analyze
+    }
   };
 
   const onDragOver = (e) => {
@@ -204,10 +236,10 @@ const Uploads = (props) => {
     try {
       const svg = chartRef.current?.querySelector("svg");
       if (!svg) return alert("Chart not found");
-      
+
       const serializer = new XMLSerializer();
       let source = serializer.serializeToString(svg);
-      
+
       // add namespaces if missing
       if (!source.match(/xmlns="http:\/\/www.w3.org\/2000\/svg"/)) {
         source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
@@ -215,38 +247,38 @@ const Uploads = (props) => {
       if (!source.match(/xmlns:xlink="http:\/\/www.w3.org\/1999\/xlink"/)) {
         source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
       }
-      
+
       // Get SVG dimensions
       const svgRect = svg.getBoundingClientRect();
       const width = Math.ceil(svgRect.width * 2) || 1200;
       const height = Math.ceil(svgRect.height * 2) || 600;
-      
+
       const svg64 = btoa(unescape(encodeURIComponent(source)));
       const img = new Image();
-      
+
       img.onerror = () => {
         console.error("Failed to load SVG image");
         alert("Failed to render chart. Please try again.");
       };
-      
+
       img.onload = () => {
         try {
           const canvas = document.createElement("canvas");
           canvas.width = width;
           canvas.height = height;
-          
+
           const ctx = canvas.getContext("2d");
           if (!ctx) return alert("Could not get canvas context");
-          
+
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
+
           // Draw the image at the proper size
           ctx.drawImage(img, 0, 0, width, height);
-          
+
           canvas.toBlob((blob) => {
             if (!blob) return alert("Failed to create image blob");
-            
+
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -261,7 +293,7 @@ const Uploads = (props) => {
           alert("Failed to process canvas");
         }
       };
-      
+
       img.src = "data:image/svg+xml;base64," + svg64;
     } catch (err) {
       console.error("PNG export error:", err);
@@ -285,6 +317,33 @@ const Uploads = (props) => {
     }
   };
 
+  // New: handle upload submit from form (validates and triggers analysis)
+  const handleUploadSubmit = () => {
+    if (!transformerId || !fileType || !confirmUpload) {
+      // validation guard (button will normally be disabled)
+      return;
+    }
+
+    // If no actual file selected, create a synthetic file-like object for demo/sample
+    const fileObj =
+      uploadedFile ||
+      new File([""], `${transformerId}.${fileType === "prfa" ? "pdf" : fileType}`, {
+        type: "application/octet-stream",
+      });
+
+    // set uploaded file and set baseline flag heuristically (if XML or named baseline)
+    setUploadedFile(fileObj);
+    setIncludeBaseline(fileType === "xml" || (fileObj.name && fileObj.name.toLowerCase().includes("baseline")));
+    // Start analysis flow
+    setAnalyzing(true);
+    setProgress(8);
+    setTimeout(() => setProgress(100), 900);
+    setTimeout(() => {
+      setAnalyzing(false);
+      props.setActiveTab("analysis");
+    }, 1200);
+  };
+
   return (
     <>
       {/* Tabs */}
@@ -297,9 +356,7 @@ const Uploads = (props) => {
                   key={tab}
                   onClick={() => props.setActiveTab(tab)}
                   className={`py-4 px-3 font-semibold border-b-2 transition-colors rounded-t ${
-                    props.activeTab === tab
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
+                    props.activeTab === tab ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {tab === "upload" && <Upload className="w-4 h-4 inline mr-2" />}
@@ -311,7 +368,7 @@ const Uploads = (props) => {
             </div>
 
             {/* Quick upload button */}
-            <div className="flex items-center gap-3">
+            {/* <div className="flex items-center gap-3">
               <button
                 className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-sm hover:opacity-95"
                 onClick={() => inputRef.current && inputRef.current.click()}
@@ -319,7 +376,7 @@ const Uploads = (props) => {
                 <CloudUpload className="w-4 h-4" />
                 Quick Upload
               </button>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
@@ -329,6 +386,7 @@ const Uploads = (props) => {
         {props.activeTab === "upload" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {/* BIG Upload Card - integrated form */}
               <div
                 className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg p-6 border border-gray-100"
                 onDrop={onDrop}
@@ -345,15 +403,58 @@ const Uploads = (props) => {
                     <div className="flex items-start justify-between">
                       <div>
                         <h2 className="text-2xl font-bold text-gray-800 mb-1">Upload FRA Data</h2>
-                        <p className="text-gray-500">Drag & drop your FRA file here, or click to browse. Supported: .csv, .xml, .fra, .bin</p>
+                        {/* <p className="text-gray-500">Drag & drop your FRA file here, or complete the form and click Upload. Supported: .csv, .xml, .fra, .bin, .pdf</p> */}
                       </div>
 
-                      <div className="text-right">
+                      {/* <div className="text-right">
                         <div className="text-sm text-gray-500">Max 50MB</div>
                         <div className="text-xs text-gray-400">Recommended: include baseline file</div>
+                      </div> */}
+                    </div>
+
+                    {/* Form inputs */}
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Transformer ID */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transformer ID</label>
+                        <input
+                          type="text"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          placeholder="e.g. TR-B-Phase-R"
+                          value={transformerId}
+                          onChange={(e) => setTransformerId(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <input
+                          type="date"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          value={uploadDate}
+                          onChange={(e) => setUploadDate(e.target.value)}
+                        />
+                      </div>
+
+                      {/* File Type */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">File Type</label>
+                        <select
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          value={fileType}
+                          onChange={(e) => setFileType(e.target.value)}
+                        >
+                          <option value="">Select file type</option>
+                          <option value="bin">BIN</option>
+                          <option value="xml">XML</option>
+                          <option value="prfa"> PDF</option>
+                          {/* <option value="csv">CSV</option> */}
+                        </select>
                       </div>
                     </div>
 
+                    {/* File input row */}
                     <div className="mt-4 flex items-center gap-3">
                       <input
                         ref={inputRef}
@@ -361,7 +462,7 @@ const Uploads = (props) => {
                         type="file"
                         onChange={handleFileUpload}
                         className="hidden"
-                        accept=".csv,.xml,.bin,.fra"
+                        accept=".csv,.xml,.bin,.fra,.pdf"
                       />
 
                       <label
@@ -373,18 +474,49 @@ const Uploads = (props) => {
                         <span className="text-sm font-medium text-gray-700">Browse Files</span>
                       </label>
 
-                      <button
-                        onClick={() => handleTestClick("TR-B-Phase-R.xml")}
-                        className="px-3 py-2 text-sm bg-gray-50 border rounded-lg hover:bg-gray-100"
-                      >
-                        Use Sample Baseline
-                      </button>
-
-                      <div className="ml-auto text-sm text-gray-500 flex items-center gap-2">
-                        <Clock className="w-4 h-4" /> Last scanned: <span className="font-medium text-gray-700">2025-10-10</span>
+                      <div className="text-sm text-gray-500">
+                        {uploadedFile ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <div>
+                              <div className="font-medium text-gray-800">{uploadedFile.name || (transformerId ? `${transformerId}.${fileType || "file"}` : "selected-file")}</div>
+                              <div className="text-xs text-gray-500">{uploadDate || "No date set"}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          "No file selected"
+                        )}
                       </div>
+
+                      {/* <div className="ml-auto text-sm text-gray-500 flex items-center gap-2">
+                        <Clock className="w-4 h-4" /> Last scanned: <span className="font-medium text-gray-700">2025-10-10</span>
+                      </div> */}
                     </div>
 
+                    {/* Checkbox + Upload button */}
+                    <div className="mt-4 flex items-center gap-3">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={confirmUpload}
+                          onChange={(e) => setConfirmUpload(e.target.checked)}
+                          className="w-4 h-4 accent-blue-600"
+                        />
+                        <span className="text-sm text-gray-600">I confirm the uploaded data and metadata are correct</span>
+                      </label>
+
+                      <button
+                        onClick={handleUploadSubmit}
+                        disabled={!confirmUpload || !transformerId || !fileType}
+                        className={`ml-auto px-4 py-2 rounded-lg text-white font-medium transition-all ${
+                          confirmUpload && transformerId && fileType ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"
+                        }`}
+                      >
+                        Upload & Analyze
+                      </button>
+                    </div>
+
+                    {/* progress or status */}
                     <div className="mt-4">
                       {analyzing ? (
                         <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
@@ -406,7 +538,7 @@ const Uploads = (props) => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100 flex items-center gap-4">
+              {/* <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100 flex items-center gap-4">
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-800">Quick Tests</h4>
                   <p className="text-sm text-gray-500">Run example files to preview how the analysis looks.</p>
@@ -416,7 +548,7 @@ const Uploads = (props) => {
                   <button onClick={() => handleTestClick("TR-B-Phase-R.xml")} className="px-3 py-1 rounded-md border text-sm bg-white hover:bg-gray-50">TR-B Baseline</button>
                   <button onClick={() => handleTestClick("PowerTrans-223.csv")} className="px-3 py-1 rounded-md border text-sm bg-white hover:bg-gray-50">PowerTrans</button>
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Right: recent */}
