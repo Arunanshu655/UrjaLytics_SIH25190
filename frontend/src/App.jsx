@@ -1,34 +1,48 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useState, useEffect } from 'react'
+import {Outlet, createBrowserRouter, createRoutesFromElements, Route, RouterProvider} from 'react-router-dom'
 import './App.css'
+import Navbar from './components/Navbar'
+import Uploads from './components/Uploads'
+import LandingPage from './components/LandingPage'
+import Login from './components/Login'
+import { useAuth } from '../contexts/AuthContext'
 
-function App() {
-  const [count, setCount] = useState(0)
 
+// Create a Layout component
+function Layout({ activeTab, setActiveTab }) {
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Outlet /> {/* This renders the child routes */}
     </>
+  );
+}
+
+function App() {
+  const [activeTab, setActiveTab] = useState('upload');
+  const {
+    setAccount
+  } = useAuth()
+  useEffect(() => {
+    const user = localStorage.getItem("User")
+    if(user) setAccount(user);
+  
+  }, [])
+  
+  const router = createBrowserRouter(
+    createRoutesFromElements(
+      <Route path="/" element={<Layout activeTab={activeTab} setActiveTab={setActiveTab} />}>
+        <Route index element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/uploads" element={<Uploads activeTab={activeTab} setActiveTab={setActiveTab}/>} />
+      </Route>
+    )
+  ) 
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <RouterProvider router={router}/>
+    </div>
   )
 }
 
